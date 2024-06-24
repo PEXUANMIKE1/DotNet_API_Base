@@ -3,6 +3,15 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+appsettings.json
+appsettings.*.json
+
+packages/
+
+.env
+
+bin/
+obj/
 # User-specific files
 *.rsuser
 *.suo
@@ -355,6 +364,7 @@ healthchecksdb
 
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
+Migration/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
