@@ -10,42 +10,62 @@ namespace BE_API_BASE.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        #region Private Members
         private readonly IAuthService _authService;
+        #endregion
+
+        #region Constructor
         public AuthController(IAuthService authService)
         {
             _authService = authService;
         }
-        [HttpPost]
+        #endregion
+
+        #region Authentication Endpoints
+        [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] Request_Register request)
         {
             return Ok(await _authService.Register(request));
         }
 
-        [HttpPost]
+        [HttpPost("confirm")]
         public async Task<IActionResult> ConfirmRegisterAccount(string confirmCode)
         {
             return Ok(await _authService.ConfirmRegisterAccount(confirmCode));
         }
 
-        [HttpGet]
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] Request_Login request)
+        {
+            return Ok(await _authService.Login(request));
+        }
+        #endregion
+
+        #region User Management Endpoints
+        [HttpGet("users")]
         public async Task<IActionResult> GetAllUser()
         {
             return Ok(await _authService.GetAllUser());
         }
-        [HttpGet]
+
+        [HttpGet("user")]
         public async Task<IActionResult> GetUserById([FromQuery] int id)
         {
             return Ok(await _authService.GetUserById(id));
         }
-        [HttpPut]
-        public async Task<IActionResult> UpdateUser(int id,[FromBody] Request_User_Update request)
+
+        [HttpPut("user/{id}")]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] Request_User_Update request)
         {
-            return Ok(await _authService.EditUser(id,request));
+            return Ok(await _authService.EditUser(id, request));
         }
-        [HttpDelete]
+
+        [HttpDelete("user/{id}")]
         public async Task<IActionResult> DeleteUserById(long id)
         {
             return Ok(await _authService.DeleteUserById(id));
         }
+        #endregion
     }
+
 }

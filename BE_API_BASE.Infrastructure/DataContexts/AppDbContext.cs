@@ -25,19 +25,5 @@ namespace BE_API_BASE.Infrastructure.DataContexts
         {
             return base.Set<TEntity>();
         }
-        /*protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            base.OnModelCreating(modelBuilder);
-           SeedRoles(modelBuilder);
-        }*/
-
-        /*private static void SeedRoles(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<Role>().HasData
-                (
-                    new Role {Id = 1, RoleCode = "Admin" , RoleName = "Admin", IsActive=false},
-                    new Role {Id = 2, RoleCode = "User" , RoleName = "User", IsActive = false }
-                );
-        }*/
     }
 }

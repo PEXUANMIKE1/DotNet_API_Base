@@ -16,33 +16,48 @@ using BE_API_BASE.Doman.Entities;
 using BE_API_BASE.Doman.InterfaceRepositories;
 using BE_API_BASE.Doman.Validations;
 using BCryptNet = BCrypt.Net.BCrypt;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using static BE_API_BASE.Doman.enumerates.constantEnums;
 
 namespace BE_API_BASE.Application.ImplementService
 {   
 
     public class AuthService : IAuthService
     {
+        #region Private Members
         private readonly IBaseRepository<User> _baseUserRepository;
         private readonly UserConverter _userConverter;
-        private readonly IMapper _mapper;
         private readonly IConfiguration _configuration; 
         private readonly IUserRepository _userRepository;
         private readonly IEmailService _emailService;
         private readonly IBaseRepository<ConfirmEmail> _baseConfirmEmailRepository;
+        private readonly IBaseRepository<Permission> _basePermissionRepository;
+        private readonly IBaseRepository<Role> _baseRoleRepository;
+        private readonly IBaseRepository<RefeshToken> _baseRefeshTokenRepository;
+        #endregion
 
-        public AuthService(IBaseRepository<User> baseRepository, UserConverter userConverter, IMapper mapper,
-            IConfiguration configuration, IUserRepository userRepository ,
-            IEmailService emailService, IBaseRepository<ConfirmEmail> baseConfirmEmailRepository)
+        #region Constructor
+        public AuthService(IBaseRepository<User> baseRepository, UserConverter userConverter,
+            IConfiguration configuration, IUserRepository userRepository, IBaseRepository<Permission> basePermissionRepository,
+            IEmailService emailService, IBaseRepository<ConfirmEmail> baseConfirmEmailRepository, IBaseRepository<Role> baseRoleRepository ,
+            IBaseRepository<RefeshToken> baseRefeshTokenRepository)
         {
             _baseUserRepository = baseRepository;
             _userConverter = userConverter;
-            _mapper = mapper;
             _configuration = configuration;
             _userRepository = userRepository;
             _emailService = emailService;
             _baseConfirmEmailRepository = baseConfirmEmailRepository;
+            _basePermissionRepository = basePermissionRepository;
+            _baseRoleRepository = baseRoleRepository;
+            _baseRefeshTokenRepository = baseRefeshTokenRepository;
         }
+        #endregion
 
+        #region Public Methods
         public async Task<ResponseObject<DataResponseUser>> DeleteUserById(long id)
         {
             try
@@ -316,11 +331,6 @@ namespace BE_API_BASE.Application.ImplementService
                 };
             }
         }
-        private string GenergateCodeActive()
-        {
-            string str = "code_" + DateTime.Now.Ticks.ToString();
-            return str;
-        }
         public async Task<string> ConfirmRegisterAccount(string confirmCode)
         {
             try
@@ -347,5 +357,168 @@ namespace BE_API_BASE.Application.ImplementService
 
             }
         }
+        public async Task<ResponseObject<DataResponseLogin>> GetJwtTokenAsync(User user)
+        {
+            try
+            {
+                var permissions = await _basePermissionRepository.GetAllAsync(x=>x.UserId == user.Id);
+                if(permissions == null)
+                {
+                    return new ResponseObject<DataResponseLogin>
+                    {
+                        Status = StatusCodes.Status404NotFound,
+                        Message = "Người dùng không tồn tại!",
+                        Data = null
+                    };
+                }
+                var roles = await _baseRoleRepository.GetAllAsync();
+
+                var authClaims = new List<Claim>
+                {
+                    new Claim("Id", user.Id.ToString()),
+                    new Claim("UserName", user.UserName),
+                    new Claim("Email", user.Email),
+                    new Claim("PhoneNumber", user.PhoneNumber),
+                    new Claim("Address", user.Address)
+                };
+                foreach (var permission in permissions)
+                {
+                    foreach (var role in roles)
+                    {
+                        if(role.Id == permission.RoleId)
+                        {
+                            authClaims.Add(new Claim("Permission", role.RoleName));
+                        }
+                    }
+                }
+                var userRole = await _userRepository.GetRolesOfUserAsync(user);
+                foreach(var item in userRole)
+                {
+                    authClaims.Add(new Claim(ClaimTypes.Role, item));
+                }
+                var jwtToken = GetToken(authClaims);
+                var refreshToken = GenerateRefreshToken();
+                _ = int.TryParse(_configuration["JWT:RefreshTokenValidity"], out int refreshTokenValidity);
+
+                RefeshToken rf = new RefeshToken
+                {
+                    IsActive = true,
+                    ExpiryTime = DateTime.UtcNow.AddHours(refreshTokenValidity),
+                    UserId = user.Id,
+                    Token = refreshToken
+                };
+                rf = await _baseRefeshTokenRepository.CreateAsync(rf);
+                return new ResponseObject<DataResponseLogin>
+                {
+                    Status = StatusCodes.Status200OK,
+                    Message = "Tạo token thành công",
+                    Data = new DataResponseLogin
+                    {
+                        AccessToken = new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                        RefeshToken = refreshToken
+                    }
+                };
+
+            }
+            catch (Exception ex)
+            {
+                return new ResponseObject<DataResponseLogin>
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Message = "Error: "+ ex.StackTrace,
+                    Data = null
+                };
+            }
+        }
+        public async Task<ResponseObject<DataResponseLogin>> Login(Request_Login request)
+        {
+            try
+            {
+                var userLog = await _baseUserRepository.GetAsync(x => x.UserName.Equals(request.UserName));
+                if (userLog == null)
+                {
+                    return new ResponseObject<DataResponseLogin>
+                    {
+                        Status = StatusCodes.Status400BadRequest,
+                        Message = "Tài khoản không chính xác!",
+                        Data = null
+                    };
+                }
+                if (userLog.UserStatus.ToString().Equals(UserStatusEnum.UnActivated.ToString()))
+                {
+                    return new ResponseObject<DataResponseLogin>
+                    {
+                        Status = StatusCodes.Status401Unauthorized,
+                        Message = "Tài khoản chưa được xác thực!",
+                        Data = null
+                    };
+                }
+                bool checkPass = BCryptNet.Verify(request.Password, userLog.Password);
+                if (!checkPass)
+                {
+                    return new ResponseObject<DataResponseLogin>
+                    {
+                        Status = StatusCodes.Status400BadRequest,
+                        Message = "Mật khẩu không chính xác!",
+                        Data = null
+                    };
+                }
+
+                return new ResponseObject<DataResponseLogin>
+                {
+                    Status = StatusCodes.Status200OK,
+                    Message = "Đăng nhập thành công!",
+                    Data = new DataResponseLogin
+                    {
+                        AccessToken = GetJwtTokenAsync(userLog).Result.Data.AccessToken,
+                        RefeshToken = GetJwtTokenAsync(userLog).Result.Data.RefeshToken
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResponseObject<DataResponseLogin>
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Message = "Đăng nhập thất bại!\nError: " + ex.StackTrace,
+                    Data = null
+                };
+            }
+        }
+        #endregion
+
+        #region Private Methods
+        private JwtSecurityToken GetToken(List<Claim> authClaims)
+        {
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:SecretKey"]));
+            _ = int.TryParse(_configuration["JWT:TokenValidityInHours"], out int tokenValidityInHours);
+            var expirationUTC = DateTime.UtcNow.AddHours(tokenValidityInHours);
+            /*var LocalTimeZone = TimeZoneInfo.Local;
+            var expirationTimeInLocalTimeZone = TimeZoneInfo.ConvertTimeToUtc(expirationUTC,LocalTimeZone);*/
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["JWT:ValidIssuer"],
+                audience: _configuration["JWT:ValidAudience"],
+                expires: expirationUTC,
+                claims: authClaims,
+                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+                );
+            return token;
+        }
+        private string GenergateCodeActive()
+        {
+            string str = "code_" + DateTime.Now.Ticks.ToString();
+            return str;
+        }
+        private string GenerateRefreshToken()
+        {
+            var randomNumber = new Byte[64];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomNumber);
+            }
+            return Convert.ToBase64String(randomNumber);
+        }
+        #endregion
     }
 }

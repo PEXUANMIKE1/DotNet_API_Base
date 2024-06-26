@@ -40,7 +40,7 @@ namespace BE_API_BASE.Application.ImplementService
             using var client = new SmtpClient();
             try
             {
-                client.Connect("smtp.gmail.com", _configuration.Port, true);
+                client.Connect(_configuration.SmtpServer, _configuration.Port, true);
                 client.AuthenticationMechanisms.Remove("XAUTH2");
                 client.Authenticate(_configuration.Username, _configuration.Password);
                 client.Send(message);
