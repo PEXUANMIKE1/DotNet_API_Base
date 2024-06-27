@@ -14,10 +14,11 @@ namespace BE_API_BASE.Application.InterfaceService
     {
         Task<ResponseObject<DataResponseUser>> Register(Request_Register request); //đăng ký tài khoản
         Task<string> ConfirmRegisterAccount(string confirmCode);// nhập mã confirm code để kích hoạt tài khoản
-
         Task<ResponseObject<DataResponseLogin>> GetJwtTokenAsync(User user);//lấy ra token của người dùng
-
         Task<ResponseObject<DataResponseLogin>> Login(Request_Login request); //Login
+        Task<ResponseObject<DataResponseUser>> ChangePassword(long userId, Request_ChangePassword request); //Change Password
+        Task<string> ForgotPassword(string email); //Forgot Password
+        Task<string> ConfirmCreateNewPassword(Request_CreateNewPassword request); //Forgot Password
 
 
         Task<ResponseObject<List<DataResponseUser>>> GetAllUser();

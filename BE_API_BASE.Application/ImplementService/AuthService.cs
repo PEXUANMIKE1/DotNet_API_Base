@@ -21,6 +21,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using static BE_API_BASE.Doman.enumerates.constantEnums;
+using Org.BouncyCastle.Asn1.Ocsp;
 
 namespace BE_API_BASE.Application.ImplementService
 {   
@@ -362,15 +363,6 @@ namespace BE_API_BASE.Application.ImplementService
             try
             {
                 var permissions = await _basePermissionRepository.GetAllAsync(x=>x.UserId == user.Id);
-                if(permissions == null)
-                {
-                    return new ResponseObject<DataResponseLogin>
-                    {
-                        Status = StatusCodes.Status404NotFound,
-                        Message = "Người dùng không tồn tại!",
-                        Data = null
-                    };
-                }
                 var roles = await _baseRoleRepository.GetAllAsync();
 
                 var authClaims = new List<Claim>
@@ -485,6 +477,122 @@ namespace BE_API_BASE.Application.ImplementService
                 };
             }
         }
+        public async Task<ResponseObject<DataResponseUser>> ChangePassword(long userId, Request_ChangePassword request)
+        {
+            try
+            {
+                var user = await _baseUserRepository.GetByIdAsync(userId);
+                var checkPass = BCryptNet.Verify(request.OldPassword, user.Password);
+                if (!checkPass)
+                {
+                    return new ResponseObject<DataResponseUser>
+                    {
+                        Status = StatusCodes.Status400BadRequest,
+                        Message = "Mật khẩu không chính xác !",
+                        Data = null
+                    };
+                }
+                if(request.NewPassword.Equals(request.OldPassword)) 
+                {
+                    return new ResponseObject<DataResponseUser>
+                    {
+                        Status = StatusCodes.Status400BadRequest,
+                        Message = "Mật khẩu mới trùng với mật khẩu cũ! Vui lòng thay đổi",
+                        Data = null
+                    };
+                }
+                if (!request.NewPassword.Equals(request.ConfirmPassword))
+                {
+                    return new ResponseObject<DataResponseUser>
+                    {
+                        Status = StatusCodes.Status400BadRequest,
+                        Message = "Mật khẩu xác nhận không trùng khớp!",
+                        Data = null
+                    };
+                }
+                user.Password = BCryptNet.HashPassword(request.NewPassword);
+                user.UpdateTime = DateTime.UtcNow;
+                await _baseUserRepository.UpdateAsync(user);
+                return new ResponseObject<DataResponseUser>
+                {
+                    Status = StatusCodes.Status200OK,
+                    Message = "Đổi mật khẩu thành công!",
+                    Data = _userConverter.EntityDTO(user)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResponseObject<DataResponseUser>
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Message = "Có lỗi trong quá trình xử lý\n Erorr: "+ex.StackTrace,
+                    Data = null
+                };
+            }
+        }
+        public async Task<string> ForgotPassword(string email)
+        {
+            try
+            {
+                var user = await _userRepository.GetUserByEmail(email);
+                if(user == null)
+                {
+                    return "Email không chính xác!";
+                }
+                /*var listConfirmCode = await _baseConfirmEmailRepository.GetAllAsync(x=>x.UserId == user.Id);
+                if(listConfirmCode.ToList().Count() > 0)
+                {
+                    foreach (var item in listConfirmCode) 
+                    {
+                        await _baseConfirmEmailRepository.DeleteAsync(item.Id);
+                    }
+                }*/
+                ConfirmEmail confirmEmail = new ConfirmEmail
+                {
+                    IsActive = true,
+                    ConfirmCode = GenergateCodeActive(),
+                    ExpiryTime = DateTime.UtcNow.AddHours(2),
+                    UserId = user.Id,
+                    IsConfirmed = false,
+                };
+                confirmEmail = await _baseConfirmEmailRepository.CreateAsync(confirmEmail);
+                var message = new EmailMessage(new string[] { user.Email }, "Mã xác nhận quên mật khẩu!", $"Mã xác nhận quên mật khẩu của bạn(2p): {confirmEmail.ConfirmCode}");
+                var send = _emailService.SendEmail(message);
+                return "Đã gửi mã xác nhận quên mật khẩu! Vui lòng kiểm tra hòm thư của bạn";
+            }
+            catch (Exception ex)
+            {
+                return "Error: "+ex.StackTrace;
+            }
+        }
+        public async Task<string> ConfirmCreateNewPassword(Request_CreateNewPassword request)
+        {
+            try
+            {
+                var confirm = await _baseConfirmEmailRepository.GetAsync(x=>x.ConfirmCode.Equals(request.ConfirmCode));
+                if (confirm == null)
+                {
+                    return "Mã xác nhận không chính xác!";
+                }
+                if(confirm.ExpiryTime < DateTime.UtcNow)
+                {
+                    return "Mã xác nhận đã hết hạn!";
+                }
+                if(!request.NewPassword.Equals(request.ConfirmPassword)) 
+                {
+                    return "Mật khẩu xác nhận không trùng khớp";
+                }
+                var user = await _baseUserRepository.GetByIdAsync(u=>u.Id == confirm.UserId);
+                user.Password = BCryptNet.HashPassword(request.NewPassword);
+                user.UpdateTime = DateTime.UtcNow;
+                await _baseUserRepository.UpdateAsync(user);
+                return "Thay đổi mật khẩu thành công!";
+            }
+            catch (Exception ex)
+            {
+                return "Error: " + ex.StackTrace;
+            }
+        }
         #endregion
 
         #region Private Methods
@@ -519,6 +627,7 @@ namespace BE_API_BASE.Application.ImplementService
             }
             return Convert.ToBase64String(randomNumber);
         }
+
         #endregion
     }
 }
