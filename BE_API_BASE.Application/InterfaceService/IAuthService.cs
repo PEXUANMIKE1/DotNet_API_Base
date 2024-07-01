@@ -19,6 +19,8 @@ namespace BE_API_BASE.Application.InterfaceService
         Task<ResponseObject<DataResponseUser>> ChangePassword(long userId, Request_ChangePassword request); //Change Password
         Task<string> ForgotPassword(string email); //Forgot Password
         Task<string> ConfirmCreateNewPassword(Request_CreateNewPassword request); //Forgot Password
+        Task<string> AddRoleForUser(long userId, List<string> roles);
+        Task<string> DeleteRoleForUser(long userId, List<string> roles);
 
 
         Task<ResponseObject<List<DataResponseUser>>> GetAllUser();

@@ -107,5 +107,35 @@ namespace BE_API_BASE.Infrastructure.ImplementRepository
             var user = await _context.Users.SingleOrDefaultAsync(x => x.UserName.ToLower().Equals(userName.ToLower()));
             return user;
         }
+
+        public async Task DeleteRolesAsync(User user, List<string> roles)
+        {
+            if (roles == null)
+            {
+                throw new ArgumentNullException(nameof(roles));
+            }
+
+            var listRole = await GetRolesOfUserAsync(user);
+            if (listRole == null)
+            {
+                throw new ArgumentNullException(nameof(listRole));
+            }
+
+            foreach (var role in listRole)
+            {
+                foreach (var itemRole in roles)
+                {
+                    if (await CompareStringAsync(itemRole, role))
+                    {
+                        var roleObject = await _context.Roles.SingleOrDefaultAsync(x => x.RoleCode.Equals(itemRole));
+                        var permission = await _context.Permissions.SingleOrDefaultAsync(x => x.RoleId == roleObject.Id && x.UserId == user.Id);
+                        _context.Permissions.Remove(permission);
+                        break;
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
     }
 }

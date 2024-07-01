@@ -14,5 +14,6 @@ namespace BE_API_BASE.Doman.InterfaceRepositories
         Task<User> GetUserByPhoneNumber(string phoneNumber);
         Task AddRoleToUserAsync(User user, List<string> listRoles);
         Task<IEnumerable<string>> GetRolesOfUserAsync(User user);
+        Task DeleteRolesAsync(User user, List<string> roles);
     }
 }

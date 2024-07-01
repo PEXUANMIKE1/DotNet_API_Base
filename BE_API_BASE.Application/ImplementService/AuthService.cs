@@ -38,13 +38,14 @@ namespace BE_API_BASE.Application.ImplementService
         private readonly IBaseRepository<Permission> _basePermissionRepository;
         private readonly IBaseRepository<Role> _baseRoleRepository;
         private readonly IBaseRepository<RefeshToken> _baseRefeshTokenRepository;
+        private readonly IHttpContextAccessor _contextAccessor;
         #endregion
 
         #region Constructor
         public AuthService(IBaseRepository<User> baseRepository, UserConverter userConverter,
             IConfiguration configuration, IUserRepository userRepository, IBaseRepository<Permission> basePermissionRepository,
             IEmailService emailService, IBaseRepository<ConfirmEmail> baseConfirmEmailRepository, IBaseRepository<Role> baseRoleRepository ,
-            IBaseRepository<RefeshToken> baseRefeshTokenRepository)
+            IBaseRepository<RefeshToken> baseRefeshTokenRepository, IHttpContextAccessor contextAccessor)
         {
             _baseUserRepository = baseRepository;
             _userConverter = userConverter;
@@ -55,6 +56,7 @@ namespace BE_API_BASE.Application.ImplementService
             _basePermissionRepository = basePermissionRepository;
             _baseRoleRepository = baseRoleRepository;
             _baseRefeshTokenRepository = baseRefeshTokenRepository;
+            _contextAccessor = contextAccessor;
         }
         #endregion
 
@@ -591,6 +593,61 @@ namespace BE_API_BASE.Application.ImplementService
             catch (Exception ex)
             {
                 return "Error: " + ex.StackTrace;
+            }
+        }
+        public async Task<string> AddRoleForUser(long userId, List<string> roles)
+        {
+            var currentUser = _contextAccessor.HttpContext.User;
+            try
+            {
+                if(!currentUser.Identity.IsAuthenticated) 
+                {
+                    return "Người dùng chưa xác thực";
+                }
+                if (!currentUser.IsInRole("Admin"))
+                {
+                    return "Bạn không có quyền hạn để sử dụng chức năng này";
+                }
+                var user = await _baseUserRepository.GetByIdAsync(userId);
+                if (user == null)
+                {
+                    return "Người dùng không tồn tại";
+                }
+
+                await _userRepository.AddRoleToUserAsync(user, roles);
+                return "Thêm quyền cho người dùng thành công!";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        public async Task<string> DeleteRoleForUser(long userId, List<string> roles)
+        {
+            var currentUser = _contextAccessor.HttpContext.User;
+            try
+            {
+                if (!currentUser.Identity.IsAuthenticated)
+                {
+                    return "Người dùng chưa xác thực";
+                }
+                if (!currentUser.IsInRole("Admin"))
+                {
+                    return "Bạn không có quyền hạn để sử dụng chức năng này";
+                }
+                var user = await _baseUserRepository.GetByIdAsync(userId);
+                if (user == null)
+                {
+                    return "Người dùng không tồn tại";
+                }
+
+                await _userRepository.DeleteRolesAsync(user, roles);
+                return "Xóa quyền của người dùng thành công!";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
             }
         }
         #endregion

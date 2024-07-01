@@ -62,6 +62,22 @@ namespace BE_API_BASE.Controllers
         {
             return Ok(await _authService.ConfirmCreateNewPassword(request));
         }
+
+        [HttpPost("{userId}")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public async Task<IActionResult> AddRoleForUser([FromRoute] long userId, [FromBody] List<string> roles)
+        {
+            return Ok(await _authService.AddRoleForUser(userId, roles));
+        }
+
+        [HttpDelete("{userId}")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public async Task<IActionResult> DeleteRoleForUser([FromRoute] long userId, [FromBody] List<string> roles)
+        {
+            return Ok(await _authService.DeleteRoleForUser(userId, roles));
+        }
+
+
         #endregion
 
         #region User Management Endpoints

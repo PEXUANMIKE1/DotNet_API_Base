@@ -36,6 +36,8 @@ namespace BE_API_BASE
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IDbContext, AppDbContext>();
             builder.Services.AddScoped<UserConverter>();
+            builder.Services.AddHttpContextAccessor();
+
             builder.Services.AddCors();
             builder.Services.AddScoped<IEmailService, EmailService>();
 
